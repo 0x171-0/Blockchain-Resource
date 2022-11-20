@@ -52,13 +52,15 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         address tokenOut,
         uint256 amountIn
     ) external override lock returns (uint256 amountOut) {
+        address _tokenA = s_tokenA;
+        address _tokenB = s_tokenB;
         require(amountIn > 0, "SimpleSwap: INSUFFICIENT_INPUT_AMOUNT");
-        require(tokenIn == s_tokenA || tokenIn == s_tokenB, "SimpleSwap: INVALID_TOKEN_IN");
-        require(tokenOut == s_tokenA || tokenOut == s_tokenB, "SimpleSwap: INVALID_TOKEN_OUT");
+        require(tokenIn == _tokenA || tokenIn == _tokenB, "SimpleSwap: INVALID_TOKEN_IN");
+        require(tokenOut == _tokenA || tokenOut == _tokenB, "SimpleSwap: INVALID_TOKEN_OUT");
         require(tokenIn != tokenOut, "SimpleSwap: IDENTICAL_ADDRESS");
-        require(msg.sender != s_tokenA && msg.sender != s_tokenB, "SimpleSwap: INVALID_TO");
+        require(msg.sender != _tokenA && msg.sender != _tokenB, "SimpleSwap: INVALID_TO");
 
-        (uint256 reserveInput, uint256 reserveOutput) = tokenIn == s_tokenA
+        (uint256 reserveInput, uint256 reserveOutput) = tokenIn == _tokenA
             ? (s_reserveA, s_reserveB)
             : (s_reserveB, s_reserveA);
 
@@ -73,10 +75,10 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         amountOutput = _getAmountOut(amountIn, reserveInput, reserveOutput);
         uint256 amountOutput2 = _getAmountOut2(amountIn, reserveInput, reserveOutput);
         // @ask not sure why _getAmountOut2 won't work when (amountOutput2 - amountOutput) = 1
-        if (amountOutput != amountOutput2) {
-            console.log("amountOutput=>", amountOutput);
-            console.log("amountOutput2=>", amountOutput2);
-        }
+        // if (amountOutput != amountOutput2) {
+        //     console.log("amountOutput=>", amountOutput);
+        //     console.log("amountOutput2=>", amountOutput2);
+        // }
 
         require(amountOutput > 0, "SimpleSwap: INSUFFICIENT_OUTPUT_AMOUNT");
         require(amountOutput < reserveOutput, "SimpleSwap: INSUFFICIENT_LIQUIDITY");
@@ -84,15 +86,13 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         ERC20(tokenOut).approve(msg.sender, amountOutput);
         ERC20(tokenOut).transfer(msg.sender, amountOutput);
 
-        uint256 balanceA;
-        uint256 balanceB;
+        uint256 balanceA = ERC20(_tokenA).balanceOf(address(this));
+        uint256 balanceB = ERC20(_tokenB).balanceOf(address(this));
 
-        balanceA = ERC20(s_tokenA).balanceOf(address(this));
-        balanceB = ERC20(s_tokenB).balanceOf(address(this));
         uint256 balanceAAdjusted = balanceA * 1000;
         uint256 balanceBAdjusted = balanceB * 1000;
 
-        tokenIn == s_tokenA
+        tokenIn == _tokenA
             ? (balanceAAdjusted = balanceAAdjusted - amountIn * FEEPERSENT)
             : (balanceBAdjusted = balanceBAdjusted - amountIn * FEEPERSENT);
 
@@ -172,9 +172,6 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
             uint256 liquidity
         )
     {
-        uint256 _reserveA = s_reserveA;
-        uint256 _reserveB = s_reserveB;
-
         uint256 amountA = amountAIn;
         uint256 amountB = amountBIn;
         uint256 _totalSupply = totalSupply();
@@ -182,16 +179,16 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
             liquidity = sqrt(amountA * amountB) - MINIMUM_LIQUIDITY;
             _mint(address(this), MINIMUM_LIQUIDITY);
         } else {
-            liquidity = min((amountA * _totalSupply) / _reserveA, (amountB * _totalSupply) / _reserveB);
+            liquidity = min((amountA * _totalSupply) / s_reserveA, (amountB * _totalSupply) / s_reserveB);
         }
 
         require(liquidity > 0, "SimpleSwap: INSUFFICIENT_LIQUIDITY_MINTED");
 
         _mint(msg.sender, liquidity);
 
-        uint256 balance0 = ERC20(s_tokenA).balanceOf(address(this)) + amountAIn;
-        uint256 balance1 = ERC20(s_tokenB).balanceOf(address(this)) + amountBIn;
-        _updateReserves(balance0, balance1);
+        uint256 balanceA = ERC20(s_tokenA).balanceOf(address(this)) + amountAIn;
+        uint256 balanceB = ERC20(s_tokenB).balanceOf(address(this)) + amountBIn;
+        _updateReserves(balanceA, balanceB);
 
         emit AddLiquidity(msg.sender, amountA, amountB, liquidity);
     }
