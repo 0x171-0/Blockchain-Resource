@@ -10,7 +10,9 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
     /*                         CONFIG                         */
     /* ------------------------------------------------------ */
     uint256 public constant MINIMUM_LIQUIDITY = 0;
-    uint256 public FEEPERSENT = 0; // feePersent / 1000, ex when feePersent = 3, 0.003 %
+    uint256 public FEEPERSENT_NUMERATOR = 0; // feePersent / 1000, ex when feePersent = 3, 0.003 %
+    uint256 private FLOATPADDING = 1000;
+    uint256 private FEEPERSENT_DENOMINATOR = 1000;
     /* ------------------------------------------------------ */
     /*                        DATA SETS                       */
     /* ------------------------------------------------------ */
@@ -54,6 +56,7 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
     ) external override lock returns (uint256 amountOut) {
         address _tokenA = s_tokenA;
         address _tokenB = s_tokenB;
+
         require(amountIn > 0, "SimpleSwap: INSUFFICIENT_INPUT_AMOUNT");
         require(tokenIn == _tokenA || tokenIn == _tokenB, "SimpleSwap: INVALID_TOKEN_IN");
         require(tokenOut == _tokenA || tokenOut == _tokenB, "SimpleSwap: INVALID_TOKEN_OUT");
@@ -63,51 +66,49 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         (uint256 reserveInput, uint256 reserveOutput) = tokenIn == _tokenA
             ? (s_reserveA, s_reserveB)
             : (s_reserveB, s_reserveA);
+        require(reserveInput > 0 && reserveOutput > 0, "SimpleSwap: INSUFFICIENT_LIQUIDITY");
 
         ERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+
         require(
             ERC20(tokenIn).balanceOf(address(this)) - reserveInput >= amountIn,
             "SimpleSwap: INSUFFICIENT_TRANSFERD_AMOUNT"
         );
-        uint256 amountOutput;
 
-        require(reserveInput > 0 && reserveOutput > 0, "SimpleSwap: INSUFFICIENT_LIQUIDITY");
+        uint256 amountOutput;
         amountOutput = _getAmountOut(amountIn, reserveInput, reserveOutput);
-        uint256 amountOutput2 = _getAmountOut2(amountIn, reserveInput, reserveOutput);
+        // uint256 amountOutput2 = _getAmountOut2(amountIn, reserveInput, reserveOutput);
         // @ask not sure why _getAmountOut2 won't work when (amountOutput2 - amountOutput) = 1
         // if (amountOutput != amountOutput2) {
         //     console.log("amountOutput=>", amountOutput);
         //     console.log("amountOutput2=>", amountOutput2);
         // }
-
         require(amountOutput > 0, "SimpleSwap: INSUFFICIENT_OUTPUT_AMOUNT");
         require(amountOutput < reserveOutput, "SimpleSwap: INSUFFICIENT_LIQUIDITY");
 
         ERC20(tokenOut).approve(msg.sender, amountOutput);
         ERC20(tokenOut).transfer(msg.sender, amountOutput);
 
-        uint256 balanceA = ERC20(_tokenA).balanceOf(address(this));
-        uint256 balanceB = ERC20(_tokenB).balanceOf(address(this));
-
-        uint256 balanceAAdjusted = balanceA * 1000;
-        uint256 balanceBAdjusted = balanceB * 1000;
-
+        uint256 newReserveA = ERC20(_tokenA).balanceOf(address(this));
+        uint256 newReserveB = ERC20(_tokenB).balanceOf(address(this));
+        uint256 balanceAForK = newReserveA * FLOATPADDING;
+        uint256 balanceBForK = newReserveB * FLOATPADDING;
         tokenIn == _tokenA
-            ? (balanceAAdjusted = balanceAAdjusted - amountIn * FEEPERSENT)
-            : (balanceBAdjusted = balanceBAdjusted - amountIn * FEEPERSENT);
-
+            ? (balanceAForK = balanceAForK - amountIn * FEEPERSENT_NUMERATOR)
+            : (balanceBForK = balanceBForK - amountIn * FEEPERSENT_NUMERATOR);
         // console.log("OLD RESERVES--->", reserveInput, reserveOutput);
         // console.log("NEW RESERVES * 1000 --->", balanceAAdjusted, balanceBAdjusted);
         // console.log("OLD K * 1000**2--->", reserveInput * reserveOutput * 1000**2);
         // console.log("NEW K * 1000**2--->", balanceAAdjusted * balanceBAdjusted);
-
         require(
-            (balanceAAdjusted * balanceBAdjusted) >= reserveInput * reserveOutput * 1000**2,
+            (balanceAForK * balanceBForK) >= reserveInput * reserveOutput * FLOATPADDING**2,
             "SimpleSwap: INVALID K"
         );
 
-        _updateReserves(balanceA, balanceB);
+        _updateReserves(newReserveA, newReserveB);
+
         emit Swap(msg.sender, tokenIn, tokenOut, amountIn, amountOutput);
+
         return amountOutput;
     }
 
@@ -122,8 +123,11 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         )
     {
         require(amountAIn > 0 && amountBIn > 0, "SimpleSwap: INSUFFICIENT_INPUT_AMOUNT");
+
         (uint256 actualAmount, uint256 actualBmount) = _getActualAmount(amountAIn, amountBIn);
+
         (uint256 amountA, uint256 amountB, uint256 liquidity) = mint(actualAmount, actualBmount);
+
         ERC20(s_tokenA).transferFrom(msg.sender, address(this), actualAmount);
         ERC20(s_tokenB).transferFrom(msg.sender, address(this), actualBmount);
     }
@@ -174,6 +178,7 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
     {
         uint256 amountA = amountAIn;
         uint256 amountB = amountBIn;
+
         uint256 _totalSupply = totalSupply();
         if (_totalSupply == 0) {
             liquidity = sqrt(amountA * amountB) - MINIMUM_LIQUIDITY;
@@ -186,9 +191,9 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
 
         _mint(msg.sender, liquidity);
 
-        uint256 balanceA = ERC20(s_tokenA).balanceOf(address(this)) + amountAIn;
-        uint256 balanceB = ERC20(s_tokenB).balanceOf(address(this)) + amountBIn;
-        _updateReserves(balanceA, balanceB);
+        uint256 newReserveA = ERC20(s_tokenA).balanceOf(address(this)) + amountAIn;
+        uint256 newReserveB = ERC20(s_tokenB).balanceOf(address(this)) + amountBIn;
+        _updateReserves(newReserveA, newReserveB);
 
         emit AddLiquidity(msg.sender, amountA, amountB, liquidity);
     }
@@ -198,7 +203,7 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         uint256 reserveInput,
         uint256 reserveOutput
     ) internal view returns (uint256) {
-        uint256 amountInWithFee = amountIn * (1000 - FEEPERSENT);
+        uint256 amountInWithFee = amountIn * (FEEPERSENT_DENOMINATOR - FEEPERSENT_NUMERATOR);
         return (amountInWithFee * reserveOutput) / (reserveInput * 1000 + amountInWithFee);
     }
 
