@@ -29,7 +29,7 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         s_unlocked = 1;
     }
 
-    constructor(address _tokenA, address _tokenB) public ERC20("SimpleSwap V2", "SPI-V2") {
+    constructor(address _tokenA, address _tokenB) public ERC20("SimpleSwap", "SPI") {
         require(_tokenA != address(0), "SimpleSwap: TOKENA_IS_NOT_CONTRACT");
         require(_tokenB != address(0), "SimpleSwap: TOKENB_IS_NOT_CONTRACT");
         require(_tokenA != _tokenB, "SimpleSwap: TOKENA_TOKENB_IDENTICAL_ADDRESS");
@@ -65,44 +65,47 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         ERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         require(
             ERC20(tokenIn).balanceOf(address(this)) - reserveInput >= amountIn,
-            "UniswapV2Library: INSUFFICIENT_TRANSFERD_AMOUNT"
+            "SimpleSwap: INSUFFICIENT_TRANSFERD_AMOUNT"
         );
         uint256 amountOutput;
-        {
-            require(reserveInput > 0 && reserveOutput > 0, "UniswapV2Library: INSUFFICIENT_LIQUIDITY");
-            amountOutput = _getAmountOut(amountIn, reserveInput, reserveOutput);
-            // uint256 amountOutput2 = _getAmountOut2(amountIn, reserveInput, reserveOutput);
-            // @ask not sure why _getAmountOut2 won't work when (amountOutput2 - amountOutput) = 1
 
-            require(amountOutput > 0, "SimpleSwap: INSUFFICIENT_OUTPUT_AMOUNT");
-            require(amountOutput < reserveOutput, "SimpleSwap: INSUFFICIENT_LIQUIDITY");
+        require(reserveInput > 0 && reserveOutput > 0, "SimpleSwap: INSUFFICIENT_LIQUIDITY");
+        amountOutput = _getAmountOut(amountIn, reserveInput, reserveOutput);
+        uint256 amountOutput2 = _getAmountOut2(amountIn, reserveInput, reserveOutput);
+        // @ask not sure why _getAmountOut2 won't work when (amountOutput2 - amountOutput) = 1
+        if (amountOutput != amountOutput2) {
+            console.log("amountOutput=>", amountOutput);
+            console.log("amountOutput2=>", amountOutput2);
         }
+
+        require(amountOutput > 0, "SimpleSwap: INSUFFICIENT_OUTPUT_AMOUNT");
+        require(amountOutput < reserveOutput, "SimpleSwap: INSUFFICIENT_LIQUIDITY");
 
         ERC20(tokenOut).approve(msg.sender, amountOutput);
         ERC20(tokenOut).transfer(msg.sender, amountOutput);
 
         uint256 balanceA;
         uint256 balanceB;
-        {
-            balanceA = ERC20(s_tokenA).balanceOf(address(this));
-            balanceB = ERC20(s_tokenB).balanceOf(address(this));
-            uint256 balanceAAdjusted = balanceA * 1000;
-            uint256 balanceBAdjusted = balanceB * 1000;
 
-            tokenIn == s_tokenA
-                ? (balanceAAdjusted = balanceAAdjusted - amountIn * FEEPERSENT)
-                : (balanceBAdjusted = balanceBAdjusted - amountIn * FEEPERSENT);
+        balanceA = ERC20(s_tokenA).balanceOf(address(this));
+        balanceB = ERC20(s_tokenB).balanceOf(address(this));
+        uint256 balanceAAdjusted = balanceA * 1000;
+        uint256 balanceBAdjusted = balanceB * 1000;
 
-            // console.log("OLD RESERVES--->", reserveInput, reserveOutput);
-            // console.log("NEW RESERVES * 1000 --->", balanceAAdjusted, balanceBAdjusted);
-            // console.log("OLD K * 1000**2--->", reserveInput * reserveOutput * 1000**2);
-            // console.log("NEW K * 1000**2--->", balanceAAdjusted * balanceBAdjusted);
+        tokenIn == s_tokenA
+            ? (balanceAAdjusted = balanceAAdjusted - amountIn * FEEPERSENT)
+            : (balanceBAdjusted = balanceBAdjusted - amountIn * FEEPERSENT);
 
-            require(
-                (balanceAAdjusted * balanceBAdjusted) >= reserveInput * reserveOutput * 1000**2,
-                "SimpleSwap: INVALID K"
-            );
-        }
+        // console.log("OLD RESERVES--->", reserveInput, reserveOutput);
+        // console.log("NEW RESERVES * 1000 --->", balanceAAdjusted, balanceBAdjusted);
+        // console.log("OLD K * 1000**2--->", reserveInput * reserveOutput * 1000**2);
+        // console.log("NEW K * 1000**2--->", balanceAAdjusted * balanceBAdjusted);
+
+        require(
+            (balanceAAdjusted * balanceBAdjusted) >= reserveInput * reserveOutput * 1000**2,
+            "SimpleSwap: INVALID K"
+        );
+
         _updateReserves(balanceA, balanceB);
         emit Swap(msg.sender, tokenIn, tokenOut, amountIn, amountOutput);
         return amountOutput;
@@ -210,7 +213,8 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         uint256 oldK = reserveInput * reserveOutput;
         uint256 newReserveInput = reserveInput + amountIn;
         uint256 newReserveOutput = oldK / newReserveInput;
-        return reserveOutput - newReserveOutput == 1 ? 0 : reserveOutput - newReserveOutput;
+        return reserveOutput - newReserveOutput;
+        // return reserveOutput - newReserveOutput == 1 ? 0 : reserveOutput - newReserveOutput;
     }
 
     function _getActualAmount(uint256 amountAIn, uint256 amountBIn)
@@ -232,7 +236,6 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
     }
 
     function _updateReserves(uint256 balanceA, uint256 balanceB) private {
-        require(balanceA <= 1e60 && balanceB <= 1e60, "UniswapV2: OVERFLOW");
         s_reserveA = balanceA;
         s_reserveB = balanceB;
     }
