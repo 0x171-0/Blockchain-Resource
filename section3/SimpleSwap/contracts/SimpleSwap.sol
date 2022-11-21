@@ -75,10 +75,8 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
             "SimpleSwap: INSUFFICIENT_TRANSFERD_AMOUNT"
         );
 
-        uint256 amountOutput;
-        amountOutput = _getAmountOut(amountIn, reserveInput, reserveOutput);
+        uint256 amountOutput = _getAmountOut(amountIn, reserveInput, reserveOutput);
         // uint256 amountOutput2 = _getAmountOut2(amountIn, reserveInput, reserveOutput);
-        // @ask not sure why _getAmountOut2 won't work when (amountOutput2 - amountOutput) = 1
         // if (amountOutput != amountOutput2) {
         //     console.log("amountOutput=>", amountOutput);
         //     console.log("amountOutput2=>", amountOutput2);
@@ -96,10 +94,6 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         tokenIn == _tokenA
             ? (balanceAForK = balanceAForK - amountIn * FEEPERSENT_NUMERATOR)
             : (balanceBForK = balanceBForK - amountIn * FEEPERSENT_NUMERATOR);
-        // console.log("OLD RESERVES--->", reserveInput, reserveOutput);
-        // console.log("NEW RESERVES * 1000 --->", balanceAAdjusted, balanceBAdjusted);
-        // console.log("OLD K * 1000**2--->", reserveInput * reserveOutput * 1000**2);
-        // console.log("NEW K * 1000**2--->", balanceAAdjusted * balanceBAdjusted);
         require(
             (balanceAForK * balanceBForK) >= reserveInput * reserveOutput * FLOATPADDING**2,
             "SimpleSwap: INVALID K"
@@ -214,9 +208,9 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
     ) internal view returns (uint256) {
         uint256 oldK = reserveInput * reserveOutput;
         uint256 newReserveInput = reserveInput + amountIn;
-        uint256 newReserveOutput = oldK / newReserveInput;
+        // @dev (newReserveInput - 1) if for round to 1
+        uint256 newReserveOutput = ((oldK + (newReserveInput - 1))) / newReserveInput;
         return reserveOutput - newReserveOutput;
-        // return reserveOutput - newReserveOutput == 1 ? 0 : reserveOutput - newReserveOutput;
     }
 
     function _getActualAmount(uint256 amountAIn, uint256 amountBIn)
