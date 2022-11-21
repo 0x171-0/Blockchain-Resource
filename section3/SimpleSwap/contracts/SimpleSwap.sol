@@ -198,7 +198,7 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         uint256 reserveOutput
     ) internal view returns (uint256) {
         uint256 amountInWithFee = amountIn * (FEEPERSENT_DENOMINATOR - FEEPERSENT_NUMERATOR);
-        return (amountInWithFee * reserveOutput) / (reserveInput * 1000 + amountInWithFee);
+        return (amountInWithFee * reserveOutput) / (reserveInput * FEEPERSENT_DENOMINATOR + amountInWithFee);
     }
 
     function _getAmountOut2(
@@ -207,9 +207,10 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         uint256 reserveOutput
     ) internal view returns (uint256) {
         uint256 oldK = reserveInput * reserveOutput;
-        uint256 newReserveInput = reserveInput + amountIn;
+        uint256 amountInWithFee = (amountIn * (FEEPERSENT_DENOMINATOR - FEEPERSENT_NUMERATOR)) / FEEPERSENT_DENOMINATOR;
+        uint256 newReserveInput = reserveInput + amountInWithFee;
         // @dev (newReserveInput - 1) if for round to 1
-        uint256 newReserveOutput = ((oldK + (newReserveInput - 1))) / newReserveInput;
+        uint256 newReserveOutput = (oldK + (newReserveInput - 1)) / newReserveInput;
         return reserveOutput - newReserveOutput;
     }
 
