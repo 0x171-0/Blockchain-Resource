@@ -11,9 +11,9 @@
 //     if (b != d) {
 //         console.group(`When k = ${k}, amount= ${a}:`)
 //         console.log("❌")
-//         console.log("1️⃣", b)
-//         console.log("2️⃣", c)
-//         console.log("3️⃣", d)
+//         console.log("1️⃣", b, ", k=", (Math.sqrt(k) + a) * (Math.sqrt(k) - b))
+//         console.log("2️⃣", c, ", k=", (Math.sqrt(k) + a) * (Math.sqrt(k) - c))
+//         console.log("3️⃣", d, ", k=", (Math.sqrt(k) + a) * (Math.sqrt(k) - d))
 //         console.groupEnd(`When k = ${k}, amount= ${a}:`)
 //     }
 // })
