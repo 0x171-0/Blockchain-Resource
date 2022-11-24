@@ -141,9 +141,7 @@ contract SimpleSwap is ISimpleSwap, ERC20 {
         transfer(address(this), liquidity);
         _burn(address(this), liquidity);
 
-        ERC20(_tokenA).approve(msg.sender, amountA);
         ERC20(_tokenA).transfer(msg.sender, amountA);
-        ERC20(_tokenB).approve(msg.sender, amountB);
         ERC20(_tokenB).transfer(msg.sender, amountB);
 
         _updateReserves(balanceA - liquidity, balanceB - liquidity);
